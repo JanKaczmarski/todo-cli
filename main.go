@@ -1,35 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"bufio"
-	"os/user"
-	"time"
-	"strings"
+	"fmt"
 	"log"
+	"os"
+	"strings"
+	"time"
 )
 
+const StorageDirName string = "todo-cli-storage"
+const StoragePath string = "/var/lib/"
+
 func main() {
-	//err := ioutil.WriteFile(fmt.Sprintf("/var/lib/todo-cli-data/note_%s.txt", getCurrentTime()), []byte('essa'), 0644)
-	//handleError(err)
-	currentUser, err := user.Current()
-	username := currentUser.Username
-	handleError(err)
-	
-	if err = os.Mkdir(fmt.Sprintf("/home/%s/.todo-cli-data", username), os.ModePerm); err != nil {
-		log.Fatal(err)
-	}
-
-	f, err2 := os.Create(fmt.Sprintf("/home/%s/.todo-cli-data/note_%s.txt", username,  getCurrentTime()))
-
-	handleError(err2)
-	defer f.Close()
-	
-	_, err3 := f.Write([]byte("essa \n"))
-	handleError(err3)
-	
-	fmt.Println("done")
 
 }
 
@@ -59,11 +42,43 @@ func getUserInput() (content, title string) {
 	return
 }
 
-func createNote(title, content string) (response bool) {
-	// Create file
-	os.Create(fmt.Sprintf("/var/lib/todo-cli-data/note_%s.txt", getCurrentTime()))
-	// Write to file
+func canCreateStorage() (create bool) {
+	f, err := os.Open(StoragePath)
+	handleError(err)
 
-	// Approve thoose changes
-	return 
+	files, err := f.ReadDir(0)
+	handleError(err)
+
+	for _, v := range files {
+		if v.Name() == StorageDirName && v.IsDir() {
+			create = false
+		} else {
+			create = true
+		}
+	}
+	return
+}
+
+func createNote(title, content string) (response bool) {
+	// If data storage dir doesn't exit create it
+	if canCreateStorage() {
+		if err := os.Mkdir(StoragePath+StorageDirName, os.ModePerm); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// Create note file
+	f, err2 := os.Create(fmt.Sprintf(StoragePath+"%s/%s_%s.txt", StorageDirName, title, getCurrentTime()))
+
+	handleError(err2)
+	defer f.Close()
+
+	// Write the content to the create note
+	_, err3 := f.Write([]byte(content))
+	handleError(err3)
+
+	response = true
+	fmt.Println("Inserted note succesfully")
+
+	return
 }
