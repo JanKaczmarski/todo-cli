@@ -1,84 +1,64 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"log"
 	"os"
+	"todo-cli/support"
+	"flag"
 	"strings"
-	"time"
 )
 
-const StorageDirName string = "todo-cli-storage"
-const StoragePath string = "/var/lib/"
+
 
 func main() {
+	// Define Flags
+	var action string
+	var title string
+	var content string
+	var quantity int
 
-}
+	// Parse flags
+	flag.StringVar(&action, "action", "show", "A type of action to execute, use <action=show> to show notes and <action=create> to create a TODO note")
+	flag.StringVar(&title, "title", "", "A title of your TODO note, only use with <action=create>")
+	flag.StringVar(&content, "content", "", "The content of your TODO note, only use with <action=create>")
+	flag.IntVar(&quantity, "quantity", 0, "The amount of notes that you want to show, Only use when <action=show>, The possible range is >= 0, when 0 provided all notes will be shown, for quantity=2, 2 notes will be shown")
+	
+	flag.Parse()
 
-func getCurrentTime() (formattedTime string) {
-	return time.Now().Format("02.01.2006-15:04:05")
-}
-
-func handleError(err error) {
-	if err != nil {
-		fmt.Println("Error: ", err.Error())
+	// Show usage if flags are invalid
+	if action == "create" && quantity != 0 {
+		flag.Usage()
+		os.Exit(1)
+	} else if quantity < 0 {
+		flag.Usage()
+		os.Exit(1)
+	} else if action == "show" && title != "" || action == "show" && content != "" {
+		fmt.Println("Don't use <actioin=show> with title or content provided")
+		flag.Usage()
+		os.Exit(1)
+	} else if quantity < 0 {
+		flag.Usage()
 		os.Exit(1)
 	}
-}
 
-func getUserInput() (content, title string) {
-	var err error
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Title: ")
-	title, err = reader.ReadString('\n')
-	handleError(err)
-	title = strings.TrimSpace(title)
-
-	fmt.Print("Content: ")
-	content, err = reader.ReadString('\n')
-	handleError(err)
-	content = strings.TrimSpace(content)
-	return
-}
-
-func canCreateStorage() (create bool) {
-	f, err := os.Open(StoragePath)
-	handleError(err)
-
-	files, err := f.ReadDir(0)
-	handleError(err)
-
-	for _, v := range files {
-		if v.Name() == StorageDirName && v.IsDir() {
-			create = false
-		} else {
-			create = true
+	if action == "show" {
+		for _, titleContentSeparated := range support.ShowNotes(quantity) {
+			splittedData := strings.Split(titleContentSeparated, support.TitleContentSeparator)
+			fmt.Printf("Title: %s \nContent: %s\n", splittedData[0], splittedData[1])
 		}
-	}
-	return
-}
-
-func createNote(title, content string) (response bool) {
-	// If data storage dir doesn't exit create it
-	if canCreateStorage() {
-		if err := os.Mkdir(StoragePath+StorageDirName, os.ModePerm); err != nil {
-			log.Fatal(err)
-		}
+	} else if action == "create" {
+		support.CreateNote(title, content)
 	}
 
-	// Create note file
-	f, err2 := os.Create(fmt.Sprintf(StoragePath+"%s/%s_%s.txt", StorageDirName, title, getCurrentTime()))
-
-	handleError(err2)
-	defer f.Close()
-
-	// Write the content to the create note
-	_, err3 := f.Write([]byte(content))
-	handleError(err3)
-
-	response = true
-	fmt.Println("Inserted note succesfully")
-
-	return
 }
+
+
+func init() {
+	// Works first run only and when smb removed the Storage Folder
+	if support.CanCreateStorage() {
+		if err := os.Mkdir(support.StoragePath+support.StorageDirName, os.ModePerm); err != nil {
+			support.HandleError(err)
+		}
+	}
+}
+
